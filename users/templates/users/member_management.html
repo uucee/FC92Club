@@ -68,12 +68,8 @@
                     <label for="csv_file">Upload CSV File</label>
                     <input type="file" class="form-control-file" id="csv_file" name="csv_file" accept=".csv" required>
                     <small class="form-text text-muted">
-                        CSV format: first_name,last_name,email{% if request.user.profile.is_admin %},role{% endif %}<br>
-                        {% if request.user.profile.is_admin %}
-                        Role options: MEM, FS, ADM
-                        {% else %}
-                        All members will be added as regular members
-                        {% endif %}
+                        CSV format: first_name,last_name,email,role<br>
+                        Role options: MEM, FS, ADM  
                     </small>
                 </div>
                 <div class="form-group">
