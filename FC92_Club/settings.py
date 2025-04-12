@@ -92,9 +92,13 @@ WSGI_APPLICATION = 'FC92_Club.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
 
+# Construct LOCAL_DB_URL using defaults for config() to avoid errors when env vars are missing
+# These defaults are primarily for preventing errors during checks/imports on Heroku;
+# the actual values from .env will be used locally if present.
+LOCAL_DB_URL = f"postgres://{config('SQL_USER', default='localuser')}:{config('SQL_PASSWORD', default='localpass')}@localhost:{config('SQL_PORT', default='5433')}/{config('SQL_DATABASE', default='localdb')}"
+
 # Let dj_database_url read DATABASE_URL directly from the environment (Heroku provides this)
-# Provide a default for local development using your .env variables if DATABASE_URL isn't set
-LOCAL_DB_URL = f"postgres://{config('SQL_USER')}:{config('SQL_PASSWORD')}@localhost:{config('SQL_PORT', default='5433')}/{config('SQL_DATABASE')}"
+# Use the constructed LOCAL_DB_URL as the fallback default for local development
 DATABASES = {
     'default': dj_database_url.config(default=LOCAL_DB_URL, conn_max_age=600)
 }
