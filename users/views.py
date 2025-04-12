@@ -11,8 +11,8 @@ from django.db import transaction
 import csv
 from io import StringIO
 import logging  # Add logging
-from .forms import ProfileUpdateForm, AdminProfileUpdateForm, ProfileCompletionForm
-from .models import Profile, User
+from .forms import ProfileUpdateForm, AdminProfileUpdateForm, ProfileCompletionForm, MemberInvitationForm, BulkMemberInvitationForm
+from .models import Profile, User, USER_ROLE_CHOICES
 from finances.models import Payment, Due
 from django.db.models import Sum, F, DecimalField
 from django.db.models.functions import Coalesce
