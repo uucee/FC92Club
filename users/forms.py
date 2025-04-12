@@ -4,7 +4,7 @@ from django.contrib.auth import get_user_model
 from django_countries.fields import CountryField
 from django_countries.widgets import CountrySelectWidget
 
-from .models import Profile  #Assuming USER_ROLE_CHOICES is defined in models.py
+from .models import Profile, USER_ROLE_CHOICES  # Ensure USER_ROLE_CHOICES is imported
 
 User = get_user_model()
 
@@ -120,3 +120,26 @@ class ProfileCompletionForm(forms.ModelForm):
             user.save()
             profile.save()
         return profile
+
+# --- Add the missing MemberInvitationForm ---
+class MemberInvitationForm(forms.Form):
+    """
+    Form for admin to add a single member and optionally send an invitation.
+    """
+    email = forms.EmailField(required=True)
+    first_name = forms.CharField(max_length=150, required=True)
+    last_name = forms.CharField(max_length=150, required=True)
+    role = forms.ChoiceField(choices=USER_ROLE_CHOICES, required=True)
+    send_invite = forms.BooleanField(required=False, initial=True, label="Send Invitation Email")
+
+# --- Existing BulkMemberInvitationForm (if any) ---
+class BulkMemberInvitationForm(forms.Form):
+    csv_file = forms.FileField(label='Upload CSV File', required=True)
+    send_invite = forms.BooleanField(required=False, initial=True, label="Send Invitation Emails")
+
+    def clean_csv_file(self):
+        csv_file = self.cleaned_data['csv_file']
+        if not csv_file.name.endswith('.csv'):
+            raise forms.ValidationError("File is not CSV type")
+        # Add further validation if needed (e.g., file size)
+        return csv_file
