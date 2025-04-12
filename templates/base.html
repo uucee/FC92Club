@@ -40,7 +40,7 @@
                             <i class="fas fa-user"></i> My Profile
                         </a>
                     </li>
-                    {% if user.is_financial_secretary or user.is_admin or user.is_superuser %}
+                    {% if user.is_admin or user.is_superuser %}
                     <li class="nav-item">
                         <a class="nav-link" href="{% url 'users:member_management' %}">
                             <i class="fas fa-users"></i> Member Management
