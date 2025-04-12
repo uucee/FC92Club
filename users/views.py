@@ -24,7 +24,7 @@ from django.contrib.auth import get_user_model, login, authenticate
 from django.contrib.auth.hashers import make_password
 from django.utils.html import strip_tags
 from django.http import HttpResponse
-from django.urls import reverse_lazy
+from django.urls import reverse_lazy, reverse
 from django.views.generic import ListView, DetailView, UpdateView, CreateView, DeleteView
 from django.views.generic.edit import FormView
 from django.http import HttpResponseForbidden, JsonResponse
@@ -312,95 +312,135 @@ def add_single_member(request):
 
     return redirect('users:member_management')
 
-@user_passes_test(is_financial_secretary_or_admin)
-@csrf_protect
+@login_required
+@admin_required # Ensure only admins can access
 def bulk_upload_members(request):
-    """Handle bulk member upload via CSV file."""
     if request.method == 'POST':
         csv_file = request.FILES.get('csv_file')
         send_invite = request.POST.get('send_invite') == 'on'
-        
-        if not csv_file:
-            messages.error(request, 'Please select a CSV file to upload.')
+
+        if not csv_file or not csv_file.name.endswith('.csv'):
+            messages.error(request, 'Please upload a valid CSV file.')
             return redirect('users:member_management')
-            
+
         try:
-            # Read CSV file
-            csv_data = csv_file.read().decode('utf-8')
-            csv_reader = csv.DictReader(StringIO(csv_data))
-            
-            success_count = 0
-            error_count = 0
-            
-            for row in csv_reader:
+            # Decode CSV file
+            data_set = csv_file.read().decode('UTF-8')
+            io_string = StringIO(data_set)
+            # Use DictReader to access columns by header name
+            reader = csv.DictReader(io_string)
+
+            created_count = 0
+            skipped_count = 0
+            error_list = []
+
+            required_headers = ['email', 'first_name', 'last_name', 'role']
+            # Check if all required headers are present
+            if not all(header in reader.fieldnames for header in required_headers):
+                missing = [h for h in required_headers if h not in reader.fieldnames]
+                messages.error(request, f"CSV file is missing required headers: {', '.join(missing)}")
+                return redirect('users:member_management')
+
+
+            for row_num, row in enumerate(reader, start=2): # start=2 for row number in messages
+                email = row.get('email', '').strip()
+                first_name = row.get('first_name', '').strip()
+                last_name = row.get('last_name', '').strip()
+                role = row.get('role', '').strip().upper() # Normalize role
+
+                # Basic validation for essential fields
+                if not email or not first_name or not last_name or not role:
+                    error_list.append(f"Row {row_num}: Missing essential data (email, first_name, last_name, role).")
+                    skipped_count += 1
+                    continue
+
+                if role not in dict(USER_ROLE_CHOICES): # Validate role
+                     error_list.append(f"Row {row_num}: Invalid role '{row.get('role', '')}'. Must be one of {list(dict(USER_ROLE_CHOICES).keys())}.")
+                     skipped_count += 1
+                     continue
+
+                if User.objects.filter(email=email).exists():
+                    error_list.append(f"Row {row_num}: User with email {email} already exists.")
+                    skipped_count += 1
+                    continue
+
                 try:
-                    # Validate required fields
-                    if not all(k in row for k in ['first_name', 'last_name', 'email']):
-                        raise ValueError('Missing required fields in CSV row')
-                        
-                    # Check if user already exists
-                    if User.objects.filter(email=row['email']).exists():
-                        raise ValueError(f"User with email {row['email']} already exists")
-                        
-                    # Determine role (default to MEM if not specified or not admin)
-                    role = row.get('role', 'MEM')
-                    if not request.user.profile.is_admin:
-                        role = 'MEM'  # Force member role for non-admin users
-                    elif role not in ['MEM', 'ADM', 'FS']:
-                        role = 'MEM'  # Default to member if invalid role specified
-                        
                     with transaction.atomic():
                         # Create user with temporary password
                         temp_password = get_random_string(12)
                         user = User.objects.create_user(
-                            username=row['email'],
-                            email=row['email'],
+                            username=email, # Use email as initial username
+                            email=email,
                             password=temp_password,
-                            first_name=row['first_name'],
-                            last_name=row['last_name'],
-                            is_active=True
+                            first_name=first_name,
+                            last_name=last_name,
+                            is_active=not send_invite # User needs to accept invite to activate
                         )
-                        
-                        profile = user.profile # Get the profile created by the signal
-                        profile.role = role # Set the role specified in the form
+
+                        # Profile is created automatically by the signal
+                        # We just need to update the role
+                        profile = user.profile
+                        profile.role = role
 
                         if send_invite:
                             profile.invitation_token = get_random_string(32)
                             profile.invitation_sent_at = timezone.now()
+                            profile.save() # Save profile changes (role, token)
+
                             # Send invitation email
                             context = {
-                                'first_name': row['first_name'],
-                                'last_name': row['last_name'],
-                                'email': row['email'],
-                                'invitation_link': request.build_absolute_uri(f'/users/accept-invitation/{profile.invitation_token}/'),
+                                'first_name': first_name,
+                                'last_name': last_name,
+                                'email': email,
+                                'invitation_link': request.build_absolute_uri(
+                                    reverse('users:accept_invitation', args=[profile.invitation_token])
+                                ),
                                 'site_url': request.build_absolute_uri('/')
                             }
                             message = render_to_string('users/email/invitation_email.txt', context)
-                            send_mail(
-                                'Welcome to FC92 Club',
-                                message,
-                                settings.DEFAULT_FROM_EMAIL,
-                                [row['email']],
-                                fail_silently=False,
-                            )
-                        profile.save() # Save the profile changes (role, token, sent_at)
-                        
-                        success_count += 1
+                            try:
+                                send_mail(
+                                    'Welcome to FC92 Club',
+                                    message,
+                                    settings.DEFAULT_FROM_EMAIL,
+                                    [email],
+                                    fail_silently=False,
+                                )
+                            except Exception as mail_error:
+                                # Log email error but continue processing other users
+                                logger.error(f"Failed to send invitation email to {email}: {mail_error}")
+                                error_list.append(f"Row {row_num}: User {email} created, but failed to send invitation email.")
+                                # Don't count as skipped, user was created
+                        else:
+                             profile.save() # Save profile changes (role)
+
+
+                        created_count += 1
+
                 except Exception as e:
-                    error_count += 1
-                    messages.error(request, f'Error processing {row.get("email", "unknown")}: {str(e)}')
-            
-            
-            
-            if success_count > 0:
-                messages.success(request, f'Successfully processed {success_count} member(s).')
-            if error_count > 0:
-                messages.warning(request, f'Failed to process {error_count} member(s).')
-                
+                    error_list.append(f"Row {row_num}: Error processing {email}: {str(e)}")
+                    skipped_count += 1
+
+            # Display summary messages
+            if created_count > 0:
+                messages.success(request, f'{created_count} member(s) processed successfully.')
+            if skipped_count > 0:
+                messages.warning(request, f'{skipped_count} member(s) skipped due to errors.')
+            if error_list:
+                # Display specific errors (consider limiting the number shown)
+                for error in error_list[:10]: # Show first 10 errors
+                    messages.error(request, error)
+                if len(error_list) > 10:
+                    messages.error(request, f"... and {len(error_list) - 10} more errors.")
+
         except Exception as e:
             messages.error(request, f'Error processing CSV file: {str(e)}')
-            
-    return redirect('users:member_management')
+
+        return redirect('users:member_management')
+
+    # GET request just renders the page (likely part of member_management view)
+    # This view might need to be adjusted if it's standalone
+    return redirect('users:member_management') # Or render a template if needed
 
 @user_passes_test(is_financial_secretary_or_admin)
 @csrf_protect
