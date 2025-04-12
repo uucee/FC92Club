@@ -12,7 +12,7 @@ import csv
 from io import StringIO
 import logging  # Add logging
 from .forms import ProfileUpdateForm, AdminProfileUpdateForm, ProfileCompletionForm, MemberInvitationForm, BulkMemberInvitationForm
-from .models import Profile, User, USER_ROLE_CHOICES
+from .models import Profile, User, ROLES
 from finances.models import Payment, Due
 from django.db.models import Sum, F, DecimalField
 from django.db.models.functions import Coalesce
@@ -383,8 +383,8 @@ def bulk_upload_members(request):
                     skipped_count += 1
                     continue
 
-                if role not in dict(USER_ROLE_CHOICES):  # Validate role
-                    error_list.append(f"Row {row_num}: Invalid role '{original_role}'. Must be one of {list(dict(USER_ROLE_CHOICES).keys())}.")
+                if role not in dict(ROLES):  # Validate role
+                    error_list.append(f"Row {row_num}: Invalid role '{original_role}'. Must be one of {list(dict(ROLES).keys())}.")
                     skipped_count += 1
                     continue
 
