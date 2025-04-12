@@ -10,6 +10,7 @@ from django.utils.crypto import get_random_string
 from django.db import transaction
 import csv
 from io import StringIO
+import logging  # Add logging
 from .forms import ProfileUpdateForm, AdminProfileUpdateForm, ProfileCompletionForm
 from .models import Profile, User
 from finances.models import Payment, Due
@@ -35,6 +36,8 @@ from django.contrib.auth.mixins import UserPassesTestMixin
 from django.views import View
 from .decorators import admin_required, financial_secretary_required
 from .mixins import AdminRequiredMixin, FinancialSecretaryRequiredMixin
+
+logger = logging.getLogger(__name__)  # Add logger
 
 # --- Permission Helper Functions ---
 def is_admin(user):
@@ -325,28 +328,54 @@ def bulk_upload_members(request):
 
         try:
             # Decode CSV file
-            data_set = csv_file.read().decode('UTF-8')
+            # Try detecting BOM and using utf-8-sig
+            try:
+                data_set = csv_file.read().decode('utf-8-sig')
+            except UnicodeDecodeError:
+                csv_file.seek(0)  # Reset file pointer
+                data_set = csv_file.read().decode('utf-8')  # Fallback to utf-8
+
             io_string = StringIO(data_set)
-            # Use DictReader to access columns by header name
             reader = csv.DictReader(io_string)
+
+            # --- Start Modification ---
+
+            # Normalize headers read from the file (lowercase, strip whitespace)
+            actual_headers = [h.strip().lower() for h in reader.fieldnames] if reader.fieldnames else []
+            logger.debug(f"Actual CSV headers (normalized): {actual_headers}")  # Log headers
+
+            required_headers = ['email', 'first_name', 'last_name', 'role']  # Keep these lowercase
+
+            # Check if all required headers (lowercase) are present in the normalized actual headers
+            missing_headers = [h for h in required_headers if h not in actual_headers]
+
+            if missing_headers:
+                # Report the missing headers based on the required list
+                messages.error(request, f"CSV file is missing or has incorrectly named required headers: {', '.join(missing_headers)}. Please ensure headers are exactly 'email', 'first_name', 'last_name', 'role' (case-insensitive). Found headers: {', '.join(reader.fieldnames or [])}")
+                return redirect('users:member_management')
+
+            # Process rows into a list of dicts with normalized keys for consistent access
+            processed_rows = []
+            for row in reader:
+                # Normalize keys and strip values in each row
+                normalized_row = {key.strip().lower(): value.strip() for key, value in row.items()}
+                processed_rows.append(normalized_row)
+
+            # --- End Modification ---
 
             created_count = 0
             skipped_count = 0
             error_list = []
 
-            required_headers = ['email', 'first_name', 'last_name', 'role']
-            # Check if all required headers are present
-            if not all(header in reader.fieldnames for header in required_headers):
-                missing = [h for h in required_headers if h not in reader.fieldnames]
-                messages.error(request, f"CSV file is missing required headers: {', '.join(missing)}")
-                return redirect('users:member_management')
-
-
-            for row_num, row in enumerate(reader, start=2): # start=2 for row number in messages
-                email = row.get('email', '').strip()
-                first_name = row.get('first_name', '').strip()
-                last_name = row.get('last_name', '').strip()
-                role = row.get('role', '').strip().upper() # Normalize role
+            # Iterate through the processed rows with normalized keys
+            for row_num, row in enumerate(processed_rows, start=2):
+                # Access data using lowercase keys
+                email = row.get('email', '')
+                first_name = row.get('first_name', '')
+                last_name = row.get('last_name', '')
+                # Get original role value for error message if needed, but process normalized
+                original_role = row.get('role', '')
+                role = original_role.upper()  # Normalize role for comparison
 
                 # Basic validation for essential fields
                 if not email or not first_name or not last_name or not role:
@@ -354,10 +383,10 @@ def bulk_upload_members(request):
                     skipped_count += 1
                     continue
 
-                if role not in dict(USER_ROLE_CHOICES): # Validate role
-                     error_list.append(f"Row {row_num}: Invalid role '{row.get('role', '')}'. Must be one of {list(dict(USER_ROLE_CHOICES).keys())}.")
-                     skipped_count += 1
-                     continue
+                if role not in dict(USER_ROLE_CHOICES):  # Validate role
+                    error_list.append(f"Row {row_num}: Invalid role '{original_role}'. Must be one of {list(dict(USER_ROLE_CHOICES).keys())}.")
+                    skipped_count += 1
+                    continue
 
                 if User.objects.filter(email=email).exists():
                     error_list.append(f"Row {row_num}: User with email {email} already exists.")
@@ -369,12 +398,12 @@ def bulk_upload_members(request):
                         # Create user with temporary password
                         temp_password = get_random_string(12)
                         user = User.objects.create_user(
-                            username=email, # Use email as initial username
+                            username=email,  # Use email as initial username
                             email=email,
                             password=temp_password,
                             first_name=first_name,
                             last_name=last_name,
-                            is_active=not send_invite # User needs to accept invite to activate
+                            is_active=not send_invite  # User needs to accept invite to activate
                         )
 
                         # Profile is created automatically by the signal
@@ -385,7 +414,7 @@ def bulk_upload_members(request):
                         if send_invite:
                             profile.invitation_token = get_random_string(32)
                             profile.invitation_sent_at = timezone.now()
-                            profile.save() # Save profile changes (role, token)
+                            profile.save()  # Save profile changes (role, token)
 
                             # Send invitation email
                             context = {
@@ -412,8 +441,7 @@ def bulk_upload_members(request):
                                 error_list.append(f"Row {row_num}: User {email} created, but failed to send invitation email.")
                                 # Don't count as skipped, user was created
                         else:
-                             profile.save() # Save profile changes (role)
-
+                            profile.save()  # Save profile changes (role)
 
                         created_count += 1
 
@@ -428,19 +456,18 @@ def bulk_upload_members(request):
                 messages.warning(request, f'{skipped_count} member(s) skipped due to errors.')
             if error_list:
                 # Display specific errors (consider limiting the number shown)
-                for error in error_list[:10]: # Show first 10 errors
+                for error in error_list[:10]:  # Show first 10 errors
                     messages.error(request, error)
                 if len(error_list) > 10:
                     messages.error(request, f"... and {len(error_list) - 10} more errors.")
 
         except Exception as e:
+            logger.error(f"Error processing CSV file: {e}", exc_info=True)  # Log full traceback
             messages.error(request, f'Error processing CSV file: {str(e)}')
 
         return redirect('users:member_management')
 
-    # GET request just renders the page (likely part of member_management view)
-    # This view might need to be adjusted if it's standalone
-    return redirect('users:member_management') # Or render a template if needed
+    return redirect('users:member_management')
 
 @user_passes_test(is_financial_secretary_or_admin)
 @csrf_protect
