@@ -4,7 +4,7 @@ from django.contrib.auth import get_user_model
 from django_countries.fields import CountryField
 from django_countries.widgets import CountrySelectWidget
 
-from .models import Profile, ROLES  # Ensure ROLES is imported
+from .models import Profile  # Ensure ROLES is imported
 
 User = get_user_model()
 
@@ -129,7 +129,7 @@ class MemberInvitationForm(forms.Form):
     email = forms.EmailField(required=True)
     first_name = forms.CharField(max_length=150, required=True)
     last_name = forms.CharField(max_length=150, required=True)
-    role = forms.ChoiceField(choices=ROLES, required=True)
+    role = forms.ChoiceField(choices=Profile.ROLES, required=True)
     send_invite = forms.BooleanField(required=False, initial=True, label="Send Invitation Email")
 
 # --- Existing BulkMemberInvitationForm (if any) ---
