@@ -315,8 +315,10 @@ def add_single_member(request):
 
     return redirect('users:member_management')
 
-@login_required
-@admin_required # Ensure only admins can access
+#@login_required
+#@admin_required # Ensure only admins can access
+@user_passes_test(is_financial_secretary_or_admin)
+@csrf_protect
 def bulk_upload_members(request):
     if request.method == 'POST':
         csv_file = request.FILES.get('csv_file')
