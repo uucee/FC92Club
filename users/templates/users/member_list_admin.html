@@ -1,0 +1,117 @@
+{% extends 'base.html' %}
+{% load static %}
+{% load humanize %}
+
+{% block title %}Member Management{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h2 class="mb-0">Member Management</h2>
+                    <a href="{% url 'users:add_single_member' %}" class="btn btn-primary">
+                        <i class="fas fa-user-plus"></i> Add New Member
+                    </a>
+                </div>
+                <div class="card-body">
+                    {% if messages %}
+                        {% for message in messages %}
+                            <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+                                {{ message }}
+                                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                            </div>
+                        {% endfor %}
+                    {% endif %}
+
+                    <div class="table-responsive">
+                        <table class="table table-striped">
+                            <thead>
+                                <tr>
+                                    <th>Name</th>
+                                    <th>Email</th>
+                                    <th>Role</th>
+                                    <th>Status</th>
+                                    <th>Balance</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for profile in profiles %}
+                                <tr>
+                                    <td>{{ profile.user.get_full_name }}</td>
+                                    <td>{{ profile.user.email }}</td>
+                                    <td>{{ profile.get_role_display }}</td>
+                                    <td>
+                                        <span class="badge {% if profile.status == 'ACT' %}bg-success{% else %}bg-danger{% endif %}">
+                                            {{ profile.get_status_display }}
+                                        </span>
+                                    </td>
+                                    <td>
+                                        <span class="{% if profile.balance > 0 %}text-danger{% elif profile.balance < 0 %}text-success{% endif %}">
+                                            ₦{{ profile.balance|floatformat:2|intcomma }}
+                                        </span>
+                                    </td>
+                                    <td>
+                                        <div class="btn-group" role="group">
+                                            {% if request.user.profile.role == 'ADM' %}
+                                                <a href="{% url 'users:profile' profile.user.username %}" class="btn btn-info btn-sm" title="View Profile">
+                                                    <i class="fas fa-eye"></i> View
+                                                </a>
+
+                                                <a href="{% url 'users:profile_edit_other' profile.user.username %}" class="btn btn-warning btn-sm" title="Edit Profile">
+                                                    <i class="fas fa-edit"></i> Edit
+                                                </a>
+
+                                                {# Toggle Access Form - Admin Only #}
+                                                <form method="post" action="{% url 'users:toggle_member_access' profile.user.id %}" class="d-inline">
+                                                    {% csrf_token %}
+                                                    {% if profile.user.is_active %}
+                                                        <button type="submit" class="btn btn-danger btn-sm" title="Disable user login">
+                                                            <i class="fas fa-user-lock"></i> Disable Access
+                                                        </button>
+                                                    {% else %}
+                                                        <button type="submit" class="btn btn-success btn-sm" title="Enable user login">
+                                                            <i class="fas fa-user-check"></i> Enable Access
+                                                        </button>
+                                                    {% endif %}
+                                                </form>
+
+                                                {% if request.user.is_superuser %}
+                                                    {# Admin Edit Link - Superuser Only #}
+                                                    <a href="{% url 'admin:users_user_change' profile.user.id %}" target="_blank" class="btn btn-secondary btn-sm" title="Edit in Admin">
+                                                        <i class="fas fa-edit"></i> Admin Edit
+                                                    </a>
+                                                {% endif %}
+
+                                                {# Delete Member Button - Admin Only #}
+                                                <form method="post" action="{% url 'users:delete_member' user_id=profile.user.id %}" class="d-inline" onsubmit="return confirm('Are you sure you want to delete {{ profile.user.username }}? This action cannot be undone.');">
+                                                    {% csrf_token %}
+                                                    <button type="submit" class="btn btn-danger btn-sm" title="Delete member">
+                                                        <i class="fas fa-trash-alt"></i> Delete
+                                                    </button>
+                                                </form>
+
+                                                {# Reset Password Button - Admin Only #}
+                                                <a href="{% url 'users:admin_reset_password' profile.user.id %}" class="btn btn-warning btn-sm" title="Reset Password">
+                                                    <i class="fas fa-key"></i> Reset Password
+                                                </a>
+                                            {% endif %}
+                                        </div>
+                                    </td>
+                                </tr>
+                                {% empty %}
+                                <tr>
+                                    <td colspan="5" class="text-center">No members found.</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

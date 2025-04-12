@@ -1,0 +1,42 @@
+version: '3.8'
+
+services:
+  web:
+    build: .
+    volumes:
+      - .:/app
+      - static_volume:/app/staticfiles
+      - media_volume:/app/media
+    ports:
+      - "8000:8000"
+    # Environment variables are automatically read from the .env file
+    # by Docker Compose. Django reads them via python-decouple.
+    # No need to list them here unless you want to override .env
+    depends_on:
+      - db
+      - mailhog
+    command: gunicorn FC92_Club.wsgi:application --bind 0.0.0.0:8000 --workers 3 --timeout 120
+
+  db:
+    image: postgres:15
+    volumes:
+      - postgres_data:/var/lib/postgresql/data/
+    environment:
+      # Read DB credentials from the .env file
+      - POSTGRES_DB=${SQL_DATABASE}
+      - POSTGRES_USER=${SQL_USER}
+      - POSTGRES_PASSWORD=${SQL_PASSWORD}
+    ports:
+      # Changed host port to 5433 to avoid potential conflicts if you run postgres locally
+      - "5433:5432"
+
+  mailhog:
+    image: mailhog/mailhog
+    ports:
+      - "1025:1025"  # SMTP port
+      - "8025:8025"  # Web interface port
+
+volumes:
+  postgres_data:
+  static_volume:
+  media_volume:
