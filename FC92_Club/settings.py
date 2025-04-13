@@ -13,6 +13,7 @@ import os
 from pathlib import Path
 import dj_database_url
 from decouple import config, Csv  # Import Csv
+from django.core.exceptions import ImproperlyConfigured
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -156,65 +157,45 @@ if DEBUG:
     print("INFO: Using local filesystem for media storage (DEBUG=True).")
 else:
     # Production settings: Use Azure Blob Storage for media
-    # Ensure you have installed django-storages[azure]
-    # Read Azure credentials and settings from environment variables
     AZURE_ACCOUNT_NAME = config('AZURE_ACCOUNT_NAME', default=None)
     AZURE_ACCOUNT_KEY = config('AZURE_ACCOUNT_KEY', default=None)
     AZURE_CONNECTION_STRING = config('AZURE_CONNECTION_STRING', default=None)
-    AZURE_CONTAINER = config('AZURE_CONTAINER', default=None)
-    AZURE_CUSTOM_DOMAIN = config('AZURE_CUSTOM_DOMAIN', default=None) # Optional: e.g., 'yourcdn.azureedge.net' or 'media.yourdomain.com'
+    AZURE_CONTAINER = config('AZURE_CONTAINER_NAME', default='media')  # Use AZURE_CONTAINER_NAME from Heroku
+    AZURE_CUSTOM_DOMAIN = config('AZURE_CUSTOM_DOMAIN', default=None)
 
     # Check if essential Azure settings are configured
-    # Note: django-storages prioritizes AZURE_CONNECTION_STRING over ACCOUNT_NAME/KEY
     azure_configured = bool(AZURE_CONTAINER and (AZURE_CONNECTION_STRING or (AZURE_ACCOUNT_NAME and AZURE_ACCOUNT_KEY)))
 
     if azure_configured:
         DEFAULT_FILE_STORAGE = 'storages.backends.azure_storage.AzureStorage'
-
-        # Define where media files will be stored within the container (optional, defaults to root)
-        # Setting this helps organize files within the container.
-        AZURE_LOCATION = 'media' # Store files in a 'media' subfolder within the container
-
+        AZURE_LOCATION = 'media'
+        
+        # Ensure the container exists and is public
+        AZURE_CONTAINER_PUBLIC_ACCESS = 'blob'  # This makes the container public read
+        
         # Construct the base URL for media files
         if AZURE_CUSTOM_DOMAIN:
-            # Use the custom domain (e.g., CDN endpoint)
-            # MEDIA_URL should end with a slash
-            MEDIA_URL = f'https://{AZURE_CUSTOM_DOMAIN}/{AZURE_LOCATION}/'
+            # Remove any trailing slashes or paths from the custom domain
+            custom_domain = AZURE_CUSTOM_DOMAIN.rstrip('/').split('/')[0]
+            MEDIA_URL = f'https://{custom_domain}/{AZURE_LOCATION}/'
         else:
-            # Use the standard Azure Blob Storage URL format
-            # MEDIA_URL should end with a slash
             MEDIA_URL = f'https://{AZURE_ACCOUNT_NAME}.blob.core.windows.net/{AZURE_CONTAINER}/{AZURE_LOCATION}/'
-
-        # MEDIA_ROOT is not used by AzureStorage backend, but MEDIA_URL is essential
-        MEDIA_ROOT = '' # Not used with Azure backend
-
-        # Optional Azure Settings (refer to django-storages documentation)
-        # AZURE_ENDPOINT_SUFFIX = config('AZURE_ENDPOINT_SUFFIX', default='core.windows.net') # Usually default is fine
-        # AZURE_URL_EXPIRATION_SECS = 3600 # Time in seconds for signed URLs (if needed for private blobs)
-        AZURE_OVERWRITE_FILES = config('AZURE_OVERWRITE_FILES', default=False, cast=bool) # Prevent overwriting files by default
-
+        
+        MEDIA_ROOT = ''
+        AZURE_OVERWRITE_FILES = config('AZURE_OVERWRITE_FILES', default=False, cast=bool)
+        
         print(f"INFO: Using Azure Blob Storage for media. Account: {AZURE_ACCOUNT_NAME}, Container: {AZURE_CONTAINER}, URL: {MEDIA_URL}")
-
-        # Set Azure specific settings for django-storages
-        # These are implicitly used by AzureStorage backend if set in settings
-        # We already read them above, but explicitly setting them can sometimes aid clarity
-        # AZURE_ACCOUNT_NAME = AZURE_ACCOUNT_NAME # Already defined
-        # AZURE_ACCOUNT_KEY = AZURE_ACCOUNT_KEY # Already defined
-        # AZURE_CONNECTION_STRING = AZURE_CONNECTION_STRING # Already defined
-        # AZURE_CONTAINER = AZURE_CONTAINER # Already defined
-        # AZURE_CUSTOM_DOMAIN = AZURE_CUSTOM_DOMAIN # Already defined
+        
+        # Add these settings to ensure proper URL handling
+        AZURE_URL_EXPIRATION_SECS = None  # URLs won't expire
+        AZURE_CACHE_CONTROL = 'public, max-age=31536000'  # Cache for 1 year
 
     else:
-        # Fallback if Azure Blob Storage is not configured in production (not recommended)
-        # Consider raising ImproperlyConfigured or logging a critical error
-        MEDIA_URL = '/media/' # Fallback URL
-        MEDIA_ROOT = BASE_DIR / 'media/' # Fallback local path (unreliable on ephemeral filesystems like Heroku)
-        DEFAULT_FILE_STORAGE = 'django.core.files.storage.FileSystemStorage' # Fallback to local storage
-        print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
-        print("WARNING: Azure Storage settings (AZURE_ACCOUNT_NAME/KEY or AZURE_CONNECTION_STRING, AZURE_CONTAINER) not found.")
-        print("WARNING: Falling back to local filesystem for media storage in PRODUCTION.")
-        print("WARNING: This is NOT recommended and likely will not work correctly on platforms like Heroku.")
-        print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+        # Fallback if Azure Blob Storage is not configured in production
+        raise ImproperlyConfigured(
+            "Azure Storage settings (AZURE_ACCOUNT_NAME/KEY or AZURE_CONNECTION_STRING, AZURE_CONTAINER_NAME) not found. "
+            "These settings are required in production."
+        )
 
 
 # Create static/media directories if they don't exist (mainly for local dev)
