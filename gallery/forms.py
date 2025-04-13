@@ -21,7 +21,7 @@ class PhotoForm(forms.ModelForm):
 class PhotoUploadForm(forms.Form):
     event = forms.ModelChoiceField(queryset=Event.objects.all(), widget=forms.HiddenInput())
     images = forms.FileField(
-        widget=forms.ClearableFileInput(),
+        widget=forms.ClearableFileInput(attrs={'allow_multiple_selected': True}),
         required=True,
         label='Select photos'
     )
