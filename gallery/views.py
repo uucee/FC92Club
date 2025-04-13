@@ -3,6 +3,7 @@ from django.contrib.auth.decorators import login_required, user_passes_test
 from django.contrib import messages
 from django.core.paginator import Paginator
 from django.db.models import Q
+from django.http import HttpResponse
 from .models import Event, Photo
 from .forms import EventForm, PhotoForm, PhotoUploadForm
 from users.decorators import admin_required
@@ -141,7 +142,17 @@ def photo_upload(request, event_pk):
 # ===== TEMPORARY SIMPLIFIED DEBUGGING VIEW =====
 @admin_required
 def photo_upload(request, event_pk):
+     # --- ADD LOGGING HERE ---
+    logger.info(f"--- >>> Entered photo_upload view for event {event_pk}. Method: {request.method} <<< ---")
+    # --- END ADDED LOGGING ---
+    # This is a simplified view for debugging purposes
+    # It will log the request data and return a simple response
+    # without processing the form or saving any files.
+    # This is a temporary measure to help debug the upload process
+    # and ensure that the view is being hit correctly.
+    # You can remove this view once the upload process is confirmed to be working.
     # Try getting event just to ensure basic DB access works if needed later
+    
     try:
          event = get_object_or_404(Event, pk=event_pk)
          event_title = event.title
