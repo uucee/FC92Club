@@ -139,43 +139,45 @@ def photo_upload(request, event_pk):
     return render(request, 'gallery/photo_upload.html', {'form': form, 'event': event})
  """
  
-# ===== TEMPORARY SIMPLIFIED DEBUGGING VIEW =====
+# 
+# ===== REVISED SIMPLIFIED DEBUGGING VIEW =====
 @admin_required
 def photo_upload(request, event_pk):
-     # --- ADD LOGGING HERE ---
-    logger.info(f"--- >>> Entered photo_upload view for event {event_pk}. Method: {request.method} <<< ---")
-    # --- END ADDED LOGGING ---
-    # This is a simplified view for debugging purposes
-    # It will log the request data and return a simple response
-    # without processing the form or saving any files.
-    # This is a temporary measure to help debug the upload process
-    # and ensure that the view is being hit correctly.
-    # You can remove this view once the upload process is confirmed to be working.
-    # Try getting event just to ensure basic DB access works if needed later
-    
-    try:
-         event = get_object_or_404(Event, pk=event_pk)
-         event_title = event.title
-    except Exception as e:
-         logger.error(f"Simplified view: Failed to get event {event_pk}", exc_info=True)
-         event_title = f"Event PK {event_pk} (Error finding)"
-
-    logger.info(f"--- >>> ENTERING SIMPLIFIED photo_upload view for event {event_pk} ({event_title}) ---")
+    logger.info(f"--- >>> ENTERING REVISED photo_upload view for event {event_pk} ---")
     logger.info(f"Request method: {request.method}")
 
+    # Attempt to get the event, log error if fails
+    try:
+        event = get_object_or_404(Event, pk=event_pk)
+        logger.info(f"Successfully retrieved event: {event.title}")
+    except Exception as e:
+        logger.error(f"Simplified view: Failed to get event {event_pk}", exc_info=True)
+        # Decide how to handle - maybe return an error page or redirect
+        # For now, let's try rendering anyway, it might fail if event is needed later
+        event = None # Set event to None if not found
+
     if request.method == 'POST':
-        logger.info("--- >>> HANDLING POST request (SIMPLIFIED View) ---")
-        post_data_summary = str(request.POST)[:200] # Log only first 200 chars
-        files_data_summary = str(request.FILES)[:200] # Log only first 200 chars
+        logger.info("--- >>> HANDLING POST request (REVISED Simplified View) ---")
+        # Log summaries, don't process the form fully yet
+        post_data_summary = str(request.POST)[:500] # Log more data if needed
+        files_data_summary = str(request.FILES)[:500] # Log more data if needed
         logger.info(f"Simplified request.POST (summary): {post_data_summary}")
         logger.info(f"Simplified request.FILES (summary): {files_data_summary}")
+
         # Return a simple success message immediately, bypassing forms etc.
-        return HttpResponse(f"SIMPLIFIED VIEW: Received POST for event {event_pk}. Check logs.", status=200)
+        return HttpResponse(f"REVISED SIMPLIFIED VIEW: Received POST for event {event_pk}. Check logs for POST/FILES content.", status=200)
+
     else: # GET request
-         logger.info("--- >>> HANDLING GET request (SIMPLIFIED View) ---")
-         # Return a simple message, don't bother rendering the actual form
-         return HttpResponse(f"SIMPLIFIED VIEW: Displaying upload form page for event {event_pk}. Submit the form to test POST logging.", status=200)
-# ===== END OF TEMPORARY SIMPLIFIED DEBUGGING VIEW =====
+        logger.info("--- >>> HANDLING GET request (REVISED Simplified View) ---")
+        # Instantiate the actual form to render it
+        # Pass event_instance=event only if event was found
+        form = PhotoUploadForm(event_instance=event) if event else PhotoUploadForm()
+        logger.info("Rendering the actual upload form template.")
+        context = {'form': form, 'event': event}
+        # Render the real template
+        return render(request, 'gallery/photo_upload.html', context)
+
+# ===== END OF REVISED SIMPLIFIED DEBUGGING VIEW =====
  
  
 @admin_required
