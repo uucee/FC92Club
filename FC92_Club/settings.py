@@ -299,24 +299,29 @@ LOGGING = {
             'formatter': 'verbose', # Use detailed formatter
         },
     },
-    'loggers': {
-        '': { # Root logger - configure logging for all modules
-            'handlers': ['console'], # Send to console handler
-            'level': 'INFO', # Process INFO level and above
+     'loggers': {
+        '': { # Root logger
+            'handlers': ['console'],
+            'level': 'INFO', # Keep root at INFO
             'propagate': True,
         },
-        'django': { # Configure Django's internal logger
+        'django': {
             'handlers': ['console'],
-            'level': 'INFO', # You might set this to WARNING in production later if too noisy
-            'propagate': False, # Don't let Django messages go to root logger too
+            'level': 'INFO', # Keep Django at INFO (or WARNING)
+            'propagate': False,
         },
-        # You could add specific loggers for your apps if needed,
-        # but the root logger config above should cover them.
-        # 'gallery': {
-        #     'handlers': ['console'],
-        #     'level': 'INFO',
-        #     'propagate': False,
-        # },
+        # --- ADD THIS ---
+        'storages': { # Logger for django-storages
+            'handlers': ['console'],
+            'level': 'DEBUG', # Set storage backend logging to DEBUG
+            'propagate': False, # Don't duplicate messages in root logger
+        },
+        'azure.storage.blob': { # Logger for the underlying Azure SDK
+             'handlers': ['console'],
+             'level': 'DEBUG', # Also set SDK to DEBUG
+             'propagate': False,
+        }
+        # --- END ADDITION ---
     },
 }
 # --- End Logging Configuration ---
