@@ -28,7 +28,7 @@ class Event(models.Model):
 
 class Photo(models.Model):
     event = models.ForeignKey(Event, on_delete=models.CASCADE, related_name='photos')
-    image = models.ImageField(upload_to='gallery/photos/')
+    image = models.ImageField(upload_to='')
     caption = models.CharField(max_length=200, blank=True)
     uploaded_by = models.ForeignKey(User, on_delete=models.CASCADE, related_name='uploaded_photos')
     uploaded_at = models.DateTimeField(auto_now_add=True)
