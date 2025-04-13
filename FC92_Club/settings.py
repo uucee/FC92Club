@@ -160,41 +160,47 @@ else:
     AZURE_ACCOUNT_NAME = config('AZURE_ACCOUNT_NAME', default=None)
     AZURE_ACCOUNT_KEY = config('AZURE_ACCOUNT_KEY', default=None)
     AZURE_CONNECTION_STRING = config('AZURE_CONNECTION_STRING', default=None)
-    AZURE_CONTAINER = config('AZURE_CONTAINER_NAME', default='media')  # Use AZURE_CONTAINER_NAME from Heroku
+    AZURE_CONTAINER = config('AZURE_CONTAINER_NAME', default=None) # Use AZURE_CONTAINER_NAME from Heroku (ensure this matches your env var name)
     AZURE_CUSTOM_DOMAIN = config('AZURE_CUSTOM_DOMAIN', default=None)
 
     # Check if essential Azure settings are configured
+    # Note: django-storages prioritizes AZURE_CONNECTION_STRING if both key/name and connection string are set
     azure_configured = bool(AZURE_CONTAINER and (AZURE_CONNECTION_STRING or (AZURE_ACCOUNT_NAME and AZURE_ACCOUNT_KEY)))
 
     if azure_configured:
         DEFAULT_FILE_STORAGE = 'storages.backends.azure_storage.AzureStorage'
-        AZURE_LOCATION = 'media'
-        
-        # Ensure the container exists and is public
-        AZURE_CONTAINER_PUBLIC_ACCESS = 'blob'  # This makes the container public read
-        
-        # Construct the base URL for media files
+
+        # --- Removed AZURE_LOCATION ---
+        # AZURE_LOCATION = 'media' # Commented out: Store files directly in the container root
+
+        # --- Removed AZURE_CONTAINER_PUBLIC_ACCESS ---
+        # This setting is configured in Azure Portal, not directly used here.
+        # AZURE_CONTAINER_PUBLIC_ACCESS = 'blob'
+
+        # Construct the base URL for media files (pointing to container root)
         if AZURE_CUSTOM_DOMAIN:
-            # Remove any trailing slashes or paths from the custom domain
-            custom_domain = AZURE_CUSTOM_DOMAIN.rstrip('/').split('/')[0]
-            MEDIA_URL = f'https://{custom_domain}/{AZURE_LOCATION}/'
+            # Ensure custom domain doesn't include extra paths if it points to the container root
+            custom_domain = AZURE_CUSTOM_DOMAIN.split('/')[0] # Basic strip of potential path
+            MEDIA_URL = f'https://{custom_domain}/' # Points to root
         else:
-            MEDIA_URL = f'https://{AZURE_ACCOUNT_NAME}.blob.core.windows.net/{AZURE_CONTAINER}/{AZURE_LOCATION}/'
-        
-        MEDIA_ROOT = ''
+            # Standard Azure URL pointing to the container root
+            MEDIA_URL = f'https://{AZURE_ACCOUNT_NAME}.blob.core.windows.net/{AZURE_CONTAINER}/' # Points to root
+
+        MEDIA_ROOT = '' # Not used by AzureStorage backend
         AZURE_OVERWRITE_FILES = config('AZURE_OVERWRITE_FILES', default=False, cast=bool)
-        
+
         print(f"INFO: Using Azure Blob Storage for media. Account: {AZURE_ACCOUNT_NAME}, Container: {AZURE_CONTAINER}, URL: {MEDIA_URL}")
-        
-        # Add these settings to ensure proper URL handling
-        AZURE_URL_EXPIRATION_SECS = None  # URLs won't expire
-        AZURE_CACHE_CONTROL = 'public, max-age=31536000'  # Cache for 1 year
+
+        # Add these settings to ensure proper URL handling for public blobs
+        AZURE_URL_EXPIRATION_SECS = None  # URLs for public blobs won't expire
+        AZURE_CACHE_CONTROL = 'public, max-age=31536000'  # Cache public blobs for 1 year
 
     else:
         # Fallback if Azure Blob Storage is not configured in production
+        # Raise an error because this configuration is essential for production
         raise ImproperlyConfigured(
-            "Azure Storage settings (AZURE_ACCOUNT_NAME/KEY or AZURE_CONNECTION_STRING, AZURE_CONTAINER_NAME) not found. "
-            "These settings are required in production."
+            "Azure Storage settings (AZURE_ACCOUNT_NAME/KEY or AZURE_CONNECTION_STRING, and AZURE_CONTAINER_NAME) not found. "
+            "These environment variables are required in production."
         )
 
 
@@ -202,7 +208,7 @@ else:
 os.makedirs(os.path.join(BASE_DIR, 'static'), exist_ok=True)
 os.makedirs(os.path.join(BASE_DIR, 'staticfiles'), exist_ok=True)
 if DEBUG:
-    os.makedirs(MEDIA_ROOT, exist_ok=True)
+    os.makedirs(MEDIA_ROOT, exist_ok=True) # MEDIA_ROOT is only defined in DEBUG mode now
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
@@ -223,27 +229,31 @@ LOGOUT_REDIRECT_URL = 'pages:home'  # Redirect to home after logout
 
 # Email Configuration
 if DEBUG:
+    # Development email settings (e.g., MailHog)
     EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
-    EMAIL_HOST = 'mailhog'  # Service name from docker-compose
+    EMAIL_HOST = 'mailhog'  # Service name from docker-compose (if used)
     EMAIL_PORT = 1025       # MailHog SMTP port
     EMAIL_USE_TLS = False
     EMAIL_HOST_USER = ''
     EMAIL_HOST_PASSWORD = ''
+    DEFAULT_FROM_EMAIL = 'debug@localhost'
 else:
     # Production email settings (read from .env/Config Vars)
-    EMAIL_HOST = config('EMAIL_HOST', default=None) # Provide default=None
+    EMAIL_HOST = config('EMAIL_HOST', default=None)
 
     if EMAIL_HOST: # Only configure SMTP if EMAIL_HOST is actually set
         EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
-        EMAIL_PORT = config('EMAIL_PORT', default=587, cast=int) # Provide default
-        EMAIL_HOST_USER = config('EMAIL_HOST_USER', default='') # Provide default
-        EMAIL_HOST_PASSWORD = config('EMAIL_HOST_PASSWORD', default='') # Provide default
-        EMAIL_USE_TLS = config('EMAIL_USE_TLS', default=True, cast=bool) # Provide default
-        DEFAULT_FROM_EMAIL = config('DEFAULT_FROM_EMAIL', default='webmaster@localhost') # Provide default
+        EMAIL_PORT = config('EMAIL_PORT', default=587, cast=int)
+        EMAIL_HOST_USER = config('EMAIL_HOST_USER', default='')
+        EMAIL_HOST_PASSWORD = config('EMAIL_HOST_PASSWORD', default='')
+        EMAIL_USE_TLS = config('EMAIL_USE_TLS', default=True, cast=bool)
+        DEFAULT_FROM_EMAIL = config('DEFAULT_FROM_EMAIL', default='webmaster@localhost')
+        print(f"INFO: Using SMTP Email Backend. Host: {EMAIL_HOST}")
     else:
         # Fallback to console backend if EMAIL_HOST is not configured
         EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
-        print("WARNING: EMAIL_HOST not set, using console email backend.") # Optional warning
+        DEFAULT_FROM_EMAIL = 'console@localhost'
+        print("WARNING: EMAIL_HOST not set, using console email backend.")
 
 
 # Session settings
@@ -261,6 +271,6 @@ CSRF_COOKIE_HTTPONLY = True
 
 
 # Configure Django App for Heroku
-# Ensure django-heroku is not configuring settings automatically
+# Ensure django-heroku is not configuring settings automatically if you are using it
 # import django_heroku
-# django_heroku.settings(locals())
+# django_heroku.settings(locals(), staticfiles=False) # Example: disable staticfiles config if handling manually
