@@ -6,6 +6,11 @@ from django.db.models import Q
 from .models import Event, Photo
 from .forms import EventForm, PhotoForm, PhotoUploadForm
 from users.decorators import admin_required
+import logging # Import the logging library
+
+# Get a logger instance for this module
+logger = logging.getLogger(__name__)
+
 
 # Create your views here.
 
@@ -69,25 +74,49 @@ def photo_upload(request, event_pk):
         form = PhotoUploadForm(request.POST, request.FILES, event_instance=event)
         if form.is_valid():
             images = request.FILES.getlist('images')
-            captions_text = form.cleaned_data.get('captions', '')  # Use .get for safety
-            captions = captions_text.splitlines()  # splitlines handles different line endings
+            captions_text = form.cleaned_data.get('captions', '')
+            captions = captions_text.splitlines()
+            
+            successful_uploads = 0
+            errors_occurred = False # Flag to track if any error happened
 
             for i, image in enumerate(images):
                 caption = captions[i].strip() if i < len(captions) else ''
+                logger.info(f"Attempting to upload photo: {image.name} for event {event_pk}") # Log start
                 try:
                     Photo.objects.create(
                         event=event,
-                        image=image,
+                        image=image, # This triggers the Azure upload via storage backend
                         caption=caption,
                         uploaded_by=request.user
                     )
+                    logger.info(f"Successfully created Photo object for: {image.name}") # Log success
+                    successful_uploads += 1
                 except Exception as e:
-                    messages.error(request, f"Error saving photo '{image.name}': {e}")
+                    errors_occurred = True # Set the flag
+                    # --- LOG THE FULL EXCEPTION ---
+                    logger.error(
+                        f"!!! FAILED to create Photo object/upload '{image.name}' to Azure for event {event_pk} !!!",
+                        exc_info=True # This includes the full traceback in the log
+                    )
+                    # Keep the user message, but the log is more important for debugging
+                    messages.error(request, f"Error saving photo '{image.name}'. Please check logs.")
 
-            messages.success(request, f'{len(images)} photo(s) uploaded successfully!')
+            # Provide summary feedback based on errors
+            if errors_occurred:
+                 messages.warning(request, f"Completed upload process with errors. {successful_uploads} out of {len(images)} photos might have been saved.")
+            elif successful_uploads > 0:
+                 messages.success(request, f'{successful_uploads} photo(s) uploaded successfully!')
+            else:
+                 # Should not happen if form is valid and images list is not empty, but good failsafe
+                 messages.error(request, "No photos were processed.")
+
+            # Always redirect back to the detail page after processing
             return redirect('gallery:event_detail', pk=event.pk)
         else:
-            messages.error(request, "Please correct the errors below.")
+            # --- LOG FORM ERRORS ---
+            logger.warning(f"Photo upload form invalid for event {event_pk}: {form.errors.as_json()}")
+            messages.error(request, f"Please correct the errors below: {form.errors}")
     else:
         form = PhotoUploadForm(event_instance=event)
 
