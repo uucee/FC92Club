@@ -8,6 +8,8 @@ from .models import Event, Photo
 from .forms import EventForm, PhotoForm, PhotoUploadForm
 from users.decorators import admin_required
 import logging # Import the logging library
+# Inside the 'if form.is_valid():' block
+from django.core.files.storage import default_storage # Import default storage
 
 # Get a logger instance for this module
 logger = logging.getLogger(__name__)
@@ -98,6 +100,53 @@ def photo_upload(request, event_pk):
             successful_uploads = 0
             errors_occurred = False
 
+            for i, image_file in enumerate(images): # Renamed to avoid clash
+                caption = captions[i].strip() if i < len(captions) else ''
+                original_filename = image_file.name
+                logger.info(f"Attempting to process photo: {original_filename} for event {event_pk}")
+                try:
+                    # --- Manually save using default storage ---
+                    logger.info(f"Calling default_storage.save() for {original_filename}")
+                    # django-storages should generate a unique name if file exists and overwrite=False
+                    # Let's use the original name for now, ensure AZURE_OVERWRITE_FILES=True for this test maybe?
+                    # OR generate a unique name here first:
+                    # file_extension = Path(original_filename).suffix
+                    # unique_name = f"{uuid.uuid4().hex}{file_extension}"
+
+                    # Use the UploadedFile object directly
+                    # Use the original filename, assuming overwrite=True or file doesn't exist
+                    saved_path = default_storage.save(original_filename, image_file)
+                    logger.info(f"default_storage.save() returned path: {saved_path}")
+
+                    # --- Check if file exists immediately after save (using storage backend) ---
+                    if default_storage.exists(saved_path):
+                        logger.info(f"VERIFIED: default_storage.exists({saved_path}) is TRUE")
+                        # Get the URL using the storage backend
+                        file_url = default_storage.url(saved_path)
+                        logger.info(f"URL from storage: {file_url}")
+
+                        # Now create the Photo object, storing the returned path
+                        Photo.objects.create(
+                            event=event,
+                            image=saved_path, # Store the path returned by save()
+                            caption=caption,
+                            uploaded_by=request.user
+                        )
+                        logger.info(f"Successfully created Photo object for saved path: {saved_path}")
+                        successful_uploads += 1
+                    else:
+                        logger.error(f"!!! VERIFICATION FAILED: default_storage.exists({saved_path}) is FALSE immediately after saving !!!")
+                        errors_occurred = True
+                        messages.error(request, f"Verification failed after saving '{original_filename}'.")
+
+                except Exception as e:
+                    errors_occurred = True
+                    logger.error(
+                        f"!!! FAILED during explicit storage save or DB create for '{original_filename}' !!!",
+                        exc_info=True
+                    )
+                    messages.error(request, f"Error processing photo '{original_filename}'.")
+
             for i, image in enumerate(images):
                 caption = captions[i].strip() if i < len(captions) else ''
                 logger.info(f"Attempting to upload photo: {image.name} for event {event_pk}")
@@ -118,6 +167,7 @@ def photo_upload(request, event_pk):
                     )
                     messages.error(request, f"Error saving photo '{image.name}'. Please check logs.")
 
+             
             if errors_occurred:
                  messages.warning(request, f"Completed upload process with errors. {successful_uploads} out of {len(images)} photos might have been saved.")
             elif successful_uploads > 0:
