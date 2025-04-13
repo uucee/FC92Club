@@ -12,3 +12,4 @@ whitenoise==6.6.0
 django-heroku==0.3.1
 django-countries==7.6.1
 pillow==11.1.0
+django-storages-azure==1.6.8
