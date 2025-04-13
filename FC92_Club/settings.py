@@ -274,3 +274,49 @@ CSRF_COOKIE_HTTPONLY = True
 # Ensure django-heroku is not configuring settings automatically if you are using it
 # import django_heroku
 # django_heroku.settings(locals(), staticfiles=False) # Example: disable staticfiles config if handling manually
+
+# settings.py
+# ... (all your other settings) ...
+
+# --- Explicit Logging Configuration ---
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False, # Keep existing loggers (like Django's internal ones)
+    'formatters': {
+        'verbose': {
+            'format': '{levelname} {asctime} {module} {process:d} {thread:d} {message}',
+            'style': '{',
+        },
+        'simple': {
+            'format': '{levelname} {message}',
+            'style': '{',
+        },
+    },
+    'handlers': {
+        'console': {
+            'level': 'INFO', # Log INFO level and above to console
+            'class': 'logging.StreamHandler', # Output to stdout/stderr
+            'formatter': 'verbose', # Use detailed formatter
+        },
+    },
+    'loggers': {
+        '': { # Root logger - configure logging for all modules
+            'handlers': ['console'], # Send to console handler
+            'level': 'INFO', # Process INFO level and above
+            'propagate': True,
+        },
+        'django': { # Configure Django's internal logger
+            'handlers': ['console'],
+            'level': 'INFO', # You might set this to WARNING in production later if too noisy
+            'propagate': False, # Don't let Django messages go to root logger too
+        },
+        # You could add specific loggers for your apps if needed,
+        # but the root logger config above should cover them.
+        # 'gallery': {
+        #     'handlers': ['console'],
+        #     'level': 'INFO',
+        #     'propagate': False,
+        # },
+    },
+}
+# --- End Logging Configuration ---

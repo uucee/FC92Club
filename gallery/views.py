@@ -71,7 +71,7 @@ def event_delete(request, pk):
 # gallery/views.py
 # ... imports and logger setup ...
 
-""" @admin_required
+@admin_required
 def photo_upload(request, event_pk):
     event = get_object_or_404(Event, pk=event_pk)
     form = None # Initialize form variable
@@ -137,9 +137,9 @@ def photo_upload(request, event_pk):
 
     # Ensure form is passed to context even if POST fails validation
     return render(request, 'gallery/photo_upload.html', {'form': form, 'event': event})
- """
+
  
-# 
+""" # 
 # ===== REVISED SIMPLIFIED DEBUGGING VIEW =====
 @admin_required
 def photo_upload(request, event_pk):
@@ -177,7 +177,7 @@ def photo_upload(request, event_pk):
         # Render the real template
         return render(request, 'gallery/photo_upload.html', context)
 
-# ===== END OF REVISED SIMPLIFIED DEBUGGING VIEW =====
+# ===== END OF REVISED SIMPLIFIED DEBUGGING VIEW ===== """
  
  
 @admin_required
