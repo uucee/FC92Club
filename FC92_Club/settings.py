@@ -278,50 +278,35 @@ CSRF_COOKIE_HTTPONLY = True
 # settings.py
 # ... (all your other settings) ...
 
+# settings.py
+# ... other settings ...
+
+# --- START FILE UPLOAD / STORAGE / LOGGING ---
+
+# Media files (User Uploads)
+# ... (Keep your existing DEBUG vs Production block) ...
+
+# Force uploads to use temporary files instead of in-memory
+FILE_UPLOAD_MAX_MEMORY_SIZE = 0
+
 # --- Explicit Logging Configuration ---
 LOGGING = {
     'version': 1,
-    'disable_existing_loggers': False, # Keep existing loggers (like Django's internal ones)
+    'disable_existing_loggers': False,
     'formatters': {
-        'verbose': {
-            'format': '{levelname} {asctime} {module} {process:d} {thread:d} {message}',
-            'style': '{',
-        },
-        'simple': {
-            'format': '{levelname} {message}',
-            'style': '{',
-        },
+        'verbose': { 'format': '{levelname} {asctime} {module} {process:d} {thread:d} {message}', 'style': '{', },
+        'simple': { 'format': '{levelname} {message}', 'style': '{', },
     },
     'handlers': {
-        'console': {
-            'level': 'INFO', # Log INFO level and above to console
-            'class': 'logging.StreamHandler', # Output to stdout/stderr
-            'formatter': 'verbose', # Use detailed formatter
-        },
+        'console': { 'level': 'DEBUG', 'class': 'logging.StreamHandler', 'formatter': 'verbose', }, # Set console to DEBUG
     },
-     'loggers': {
-        '': { # Root logger
-            'handlers': ['console'],
-            'level': 'INFO', # Keep root at INFO
-            'propagate': True,
-        },
-        'django': {
-            'handlers': ['console'],
-            'level': 'INFO', # Keep Django at INFO (or WARNING)
-            'propagate': False,
-        },
-        # --- ADD THIS ---
-        'storages': { # Logger for django-storages
-            'handlers': ['console'],
-            'level': 'DEBUG', # Set storage backend logging to DEBUG
-            'propagate': False, # Don't duplicate messages in root logger
-        },
-        'azure.storage.blob': { # Logger for the underlying Azure SDK
-             'handlers': ['console'],
-             'level': 'DEBUG', # Also set SDK to DEBUG
-             'propagate': False,
-        }
-        # --- END ADDITION ---
+    'loggers': {
+        '': { 'handlers': ['console'], 'level': 'INFO', 'propagate': True, }, # Root logger at INFO
+        'django': { 'handlers': ['console'], 'level': 'INFO', 'propagate': False, },
+        # --- Enable these for detailed storage/SDK logs if needed ---
+        'storages': { 'handlers': ['console'], 'level': 'DEBUG', 'propagate': False, },
+        'azure.storage.blob': { 'handlers': ['console'], 'level': 'DEBUG', 'propagate': False, },
+        # --- ---------------------------------------------------- ---
     },
 }
-# --- End Logging Configuration ---
+# --- END FILE UPLOAD / STORAGE / LOGGING ---
