@@ -70,7 +70,7 @@ def event_delete(request, pk):
 # gallery/views.py
 # ... imports and logger setup ...
 
-@admin_required
+""" @admin_required
 def photo_upload(request, event_pk):
     event = get_object_or_404(Event, pk=event_pk)
     form = None # Initialize form variable
@@ -136,7 +136,37 @@ def photo_upload(request, event_pk):
 
     # Ensure form is passed to context even if POST fails validation
     return render(request, 'gallery/photo_upload.html', {'form': form, 'event': event})
+ """
+ 
+# ===== TEMPORARY SIMPLIFIED DEBUGGING VIEW =====
+@admin_required
+def photo_upload(request, event_pk):
+    # Try getting event just to ensure basic DB access works if needed later
+    try:
+         event = get_object_or_404(Event, pk=event_pk)
+         event_title = event.title
+    except Exception as e:
+         logger.error(f"Simplified view: Failed to get event {event_pk}", exc_info=True)
+         event_title = f"Event PK {event_pk} (Error finding)"
 
+    logger.info(f"--- >>> ENTERING SIMPLIFIED photo_upload view for event {event_pk} ({event_title}) ---")
+    logger.info(f"Request method: {request.method}")
+
+    if request.method == 'POST':
+        logger.info("--- >>> HANDLING POST request (SIMPLIFIED View) ---")
+        post_data_summary = str(request.POST)[:200] # Log only first 200 chars
+        files_data_summary = str(request.FILES)[:200] # Log only first 200 chars
+        logger.info(f"Simplified request.POST (summary): {post_data_summary}")
+        logger.info(f"Simplified request.FILES (summary): {files_data_summary}")
+        # Return a simple success message immediately, bypassing forms etc.
+        return HttpResponse(f"SIMPLIFIED VIEW: Received POST for event {event_pk}. Check logs.", status=200)
+    else: # GET request
+         logger.info("--- >>> HANDLING GET request (SIMPLIFIED View) ---")
+         # Return a simple message, don't bother rendering the actual form
+         return HttpResponse(f"SIMPLIFIED VIEW: Displaying upload form page for event {event_pk}. Submit the form to test POST logging.", status=200)
+# ===== END OF TEMPORARY SIMPLIFIED DEBUGGING VIEW =====
+ 
+ 
 @admin_required
 def photo_edit(request, pk):
     photo = get_object_or_404(Photo, pk=pk)
