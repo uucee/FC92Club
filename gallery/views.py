@@ -67,59 +67,74 @@ def event_delete(request, pk):
         return redirect('gallery:event_list')
     return render(request, 'gallery/event_confirm_delete.html', {'event': event})
 
+# gallery/views.py
+# ... imports and logger setup ...
+
 @admin_required
 def photo_upload(request, event_pk):
     event = get_object_or_404(Event, pk=event_pk)
+    form = None # Initialize form variable
+
     if request.method == 'POST':
+        # --- START NEW LOGGING ---
+        logger.info(f"--- Handling POST for event {event_pk} ---")
+        logger.info(f"request.POST contents: {request.POST}")
+        logger.info(f"request.FILES contents: {request.FILES}")
+        # --- END NEW LOGGING ---
+
         form = PhotoUploadForm(request.POST, request.FILES, event_instance=event)
-        if form.is_valid():
-            images = request.FILES.getlist('images')
+
+        # --- Log form validity AND file list immediately after check ---
+        form_is_valid = form.is_valid()
+        logger.info(f"Result of form.is_valid(): {form_is_valid}")
+        if form_is_valid:
+            images = request.FILES.getlist('images') # Get the list *after* validation
+            logger.info(f"Contents of images list (from getlist): {images}") # Log the list itself
+            # --- REST OF YOUR if form_is_valid BLOCK ---
             captions_text = form.cleaned_data.get('captions', '')
             captions = captions_text.splitlines()
-            
+
             successful_uploads = 0
-            errors_occurred = False # Flag to track if any error happened
+            errors_occurred = False
 
             for i, image in enumerate(images):
                 caption = captions[i].strip() if i < len(captions) else ''
-                logger.info(f"Attempting to upload photo: {image.name} for event {event_pk}") # Log start
+                logger.info(f"Attempting to upload photo: {image.name} for event {event_pk}")
                 try:
                     Photo.objects.create(
                         event=event,
-                        image=image, # This triggers the Azure upload via storage backend
+                        image=image,
                         caption=caption,
                         uploaded_by=request.user
                     )
-                    logger.info(f"Successfully created Photo object for: {image.name}") # Log success
+                    logger.info(f"Successfully created Photo object for: {image.name}")
                     successful_uploads += 1
                 except Exception as e:
-                    errors_occurred = True # Set the flag
-                    # --- LOG THE FULL EXCEPTION ---
+                    errors_occurred = True
                     logger.error(
                         f"!!! FAILED to create Photo object/upload '{image.name}' to Azure for event {event_pk} !!!",
-                        exc_info=True # This includes the full traceback in the log
+                        exc_info=True
                     )
-                    # Keep the user message, but the log is more important for debugging
                     messages.error(request, f"Error saving photo '{image.name}'. Please check logs.")
 
-            # Provide summary feedback based on errors
             if errors_occurred:
                  messages.warning(request, f"Completed upload process with errors. {successful_uploads} out of {len(images)} photos might have been saved.")
             elif successful_uploads > 0:
                  messages.success(request, f'{successful_uploads} photo(s) uploaded successfully!')
             else:
-                 # Should not happen if form is valid and images list is not empty, but good failsafe
-                 messages.error(request, "No photos were processed.")
+                 # This message will now appear if images list was empty
+                 messages.info(request, "Upload processed, but no new photos were saved (was the file list empty?).")
 
-            # Always redirect back to the detail page after processing
             return redirect('gallery:event_detail', pk=event.pk)
+            # --- END OF if form_is_valid BLOCK ---
         else:
-            # --- LOG FORM ERRORS ---
+            # --- Log form errors if invalid ---
             logger.warning(f"Photo upload form invalid for event {event_pk}: {form.errors.as_json()}")
             messages.error(request, f"Please correct the errors below: {form.errors}")
-    else:
+    else: # if request.method != 'POST':
         form = PhotoUploadForm(event_instance=event)
 
+    # Ensure form is passed to context even if POST fails validation
     return render(request, 'gallery/photo_upload.html', {'form': form, 'event': event})
 
 @admin_required
