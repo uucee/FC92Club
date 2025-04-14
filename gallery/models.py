@@ -1,9 +1,20 @@
+import uuid
+import os
 from django.db import models
 from django.utils import timezone
 from django.contrib.auth import get_user_model
 from django.urls import reverse
 
 User = get_user_model()
+
+def unique_photo_path(instance, filename):
+    """Generates unique filename, stored in container root."""
+    # Get file extension
+    ext = os.path.splitext(filename)[1]
+    # Create unique filename
+    unique_filename = f"{uuid.uuid4()}{ext}"
+    # Return just the unique filename (stores in root)
+    return unique_filename
 
 class Event(models.Model):
     title = models.CharField(max_length=200)
@@ -28,7 +39,7 @@ class Event(models.Model):
 
 class Photo(models.Model):
     event = models.ForeignKey(Event, on_delete=models.CASCADE, related_name='photos')
-    image = models.ImageField(upload_to='')
+    image = models.ImageField(upload_to=unique_photo_path)  # Use the new function
     caption = models.CharField(max_length=200, blank=True)
     uploaded_by = models.ForeignKey(User, on_delete=models.CASCADE, related_name='uploaded_photos')
     uploaded_at = models.DateTimeField(auto_now_add=True)
