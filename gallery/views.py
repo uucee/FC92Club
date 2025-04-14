@@ -71,7 +71,7 @@ def event_delete(request, pk):
     return render(request, 'gallery/event_confirm_delete.html', {'event': event})
 
 # gallery/views.py
-# ... imports and logger setup ...
+""" # ... imports and logger setup ...
 
 @admin_required
 def photo_upload(request, event_pk):
@@ -98,9 +98,75 @@ def photo_upload(request, event_pk):
             captions = captions_text.splitlines()
 
             successful_uploads = 0
+            errors_occurred = False """
+# gallery/views.py
+# ... imports, logger ...
+
+@admin_required
+def photo_upload(request, event_pk):
+    logger.info(f"--- >>> Entered photo_upload view for event {event_pk}. Method: {request.method} <<< ---")
+    event = get_object_or_404(Event, pk=event_pk)
+    form = None
+
+    if request.method == 'POST':
+        logger.info(f"--- Handling POST for event {event_pk} ---")
+        logger.info(f"request.POST contents: {request.POST}")
+        logger.info(f"request.FILES contents: {request.FILES}")
+
+        form = PhotoUploadForm(request.POST, request.FILES, event_instance=event)
+
+        form_is_valid = form.is_valid()
+        logger.info(f"Result of form.is_valid(): {form_is_valid}")
+        if form_is_valid:
+            images = request.FILES.getlist('images')
+            logger.info(f"Contents of images list (from getlist): {images}")
+            captions_text = form.cleaned_data.get('captions', '')
+            captions = captions_text.splitlines()
+
+            successful_uploads = 0
             errors_occurred = False
 
-            for i, image_file in enumerate(images): # Renamed to avoid clash
+            for i, image in enumerate(images): # Use 'image' from loop
+                caption = captions[i].strip() if i < len(captions) else ''
+                logger.info(f"Attempting to upload photo: {image.name} for event {event_pk}")
+                try:
+                    # Use the standard model create method - relies on DEFAULT_FILE_STORAGE
+                    Photo.objects.create(
+                        event=event,
+                        image=image, # Pass the file object
+                        caption=caption,
+                        uploaded_by=request.user
+                    )
+                    # If the previous line succeeded, Django *thinks* the storage backend worked
+                    logger.info(f"Successfully CREATED Photo object for: {image.name}")
+                    successful_uploads += 1
+                except Exception as e:
+                    errors_occurred = True
+                    logger.error(
+                        f"!!! FAILED to create Photo object/upload '{image.name}' to Azure for event {event_pk} !!!",
+                        exc_info=True # Keep detailed traceback logging
+                    )
+                    messages.error(request, f"Error saving photo '{image.name}'. Please check logs.")
+
+            # ... (message handling based on flags) ...
+            if errors_occurred:
+                 messages.warning(request, f"Completed upload process with errors. {successful_uploads} out of {len(images)} photos might have been saved.")
+            elif successful_uploads > 0:
+                 messages.success(request, f'{successful_uploads} photo(s) uploaded successfully!')
+            else:
+                 messages.info(request, "Upload processed, but no new photos were saved (was the file list empty?).")
+
+            return redirect('gallery:event_detail', pk=event.pk)
+        else:
+            logger.warning(f"Photo upload form invalid for event {event_pk}: {form.errors.as_json()}")
+            messages.error(request, f"Please correct the errors below: {form.errors}")
+    else: # GET request
+        form = PhotoUploadForm(event_instance=event)
+
+    return render(request, 'gallery/photo_upload.html', {'form': form, 'event': event})
+
+# ... rest of views ...
+"""             for i, image_file in enumerate(images): # Renamed to avoid clash
                 caption = captions[i].strip() if i < len(captions) else ''
                 original_filename = image_file.name
                 logger.info(f"Attempting to process photo: {original_filename} for event {event_pk}")
@@ -186,7 +252,7 @@ def photo_upload(request, event_pk):
         form = PhotoUploadForm(event_instance=event)
 
     # Ensure form is passed to context even if POST fails validation
-    return render(request, 'gallery/photo_upload.html', {'form': form, 'event': event})
+    return render(request, 'gallery/photo_upload.html', {'form': form, 'event': event}) """
 
  
 """ # 
