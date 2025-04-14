@@ -160,6 +160,7 @@ else:
     AZURE_ACCOUNT_NAME = config('AZURE_ACCOUNT_NAME', default=None)
     AZURE_ACCOUNT_KEY = config('AZURE_ACCOUNT_KEY', default=None) # Read it but don't log it directly
     AZURE_CONTAINER = config('AZURE_CONTAINER', default=None)
+    AZURE_CUSTOM_DOMAIN = config('AZURE_CUSTOM_DOMAIN', default=None) # Optional custom domain for Azure Blob Storage
 
     # --- Add Logging ---
     print(f"--- Azure Settings Check ---")
