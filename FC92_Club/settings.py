@@ -156,18 +156,19 @@ if DEBUG:
     MEDIA_ROOT = BASE_DIR / 'media'
     print("INFO: Using local filesystem for media storage (DEBUG=True).")
 else:
-    # Production settings: Use Azure Blob Storage for media
-    AZURE_ACCOUNT_NAME = config('AZURE_ACCOUNT_NAME', default='fc92clubstr')
-    AZURE_ACCOUNT_KEY = config('AZURE_ACCOUNT_KEY', default=None)
-    AZURE_CONNECTION_STRING = config('AZURE_CONNECTION_STRING', default=None)
-    AZURE_CONTAINER = config('AZURE_CONTAINER_NAME', default='media') # Use AZURE_CONTAINER_NAME from Heroku (ensure this matches your env var name)
-    AZURE_CUSTOM_DOMAIN = config('AZURE_CUSTOM_DOMAIN', default=None)
+    # Production settings (Azure Blob Storage)
+    AZURE_ACCOUNT_NAME = config('AZURE_ACCOUNT_NAME', default=None)
+    AZURE_ACCOUNT_KEY = config('AZURE_ACCOUNT_KEY', default=None) # Read it but don't log it directly
+    AZURE_CONTAINER = config('AZURE_CONTAINER', default=None)
 
-    # Check if essential Azure settings are configured
-    # Note: django-storages prioritizes AZURE_CONNECTION_STRING if both key/name and connection string are set
-    azure_configured = bool(AZURE_CONTAINER and (AZURE_CONNECTION_STRING or (AZURE_ACCOUNT_NAME and AZURE_ACCOUNT_KEY)))
+    # --- Add Logging ---
+    print(f"--- Azure Settings Check ---")
+    print(f"AZURE_ACCOUNT_NAME: {AZURE_ACCOUNT_NAME}")
+    print(f"AZURE_ACCOUNT_KEY is set: {bool(AZURE_ACCOUNT_KEY)}") # Log if key is present, not the key itself
+    print(f"AZURE_CONTAINER: {AZURE_CONTAINER}")
+    # --- End Logging ---
 
-    if azure_configured:
+    if AZURE_ACCOUNT_NAME and AZURE_ACCOUNT_KEY and AZURE_CONTAINER:
         DEFAULT_FILE_STORAGE = 'storages.backends.azure_storage.AzureStorage'
 
         # --- Removed AZURE_LOCATION ---
@@ -195,9 +196,13 @@ else:
         AZURE_URL_EXPIRATION_SECS = None  # URLs for public blobs won't expire
         AZURE_CACHE_CONTROL = 'public, max-age=31536000'  # Cache public blobs for 1 year
 
+        print(f"INFO: Using Azure Blob Storage for media. DEFAULT_FILE_STORAGE set.")
+        print(f"MEDIA_URL configured as: {MEDIA_URL}")
     else:
         # Fallback if Azure Blob Storage is not configured in production
         # Raise an error because this configuration is essential for production
+        print("WARNING: Azure Blob Storage settings incomplete, media files may not work.")
+        DEFAULT_FILE_STORAGE = 'django.core.files.storage.FileSystemStorage' # Fallback explicitly
         raise ImproperlyConfigured(
             "Azure Storage settings (AZURE_ACCOUNT_NAME/KEY or AZURE_CONNECTION_STRING, and AZURE_CONTAINER_NAME) not found. "
             "These environment variables are required in production."
