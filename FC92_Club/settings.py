@@ -157,10 +157,10 @@ if DEBUG:
     print("INFO: Using local filesystem for media storage (DEBUG=True).")
 else:
     # Production settings: Use Azure Blob Storage for media
-    AZURE_ACCOUNT_NAME = config('AZURE_ACCOUNT_NAME', default=None)
+    AZURE_ACCOUNT_NAME = config('AZURE_ACCOUNT_NAME', default='fc92club')
     AZURE_ACCOUNT_KEY = config('AZURE_ACCOUNT_KEY', default=None)
     AZURE_CONNECTION_STRING = config('AZURE_CONNECTION_STRING', default=None)
-    AZURE_CONTAINER = config('AZURE_CONTAINER_NAME', default=None) # Use AZURE_CONTAINER_NAME from Heroku (ensure this matches your env var name)
+    AZURE_CONTAINER = config('AZURE_CONTAINER_NAME', default='media') # Use AZURE_CONTAINER_NAME from Heroku (ensure this matches your env var name)
     AZURE_CUSTOM_DOMAIN = config('AZURE_CUSTOM_DOMAIN', default=None)
 
     # Check if essential Azure settings are configured
